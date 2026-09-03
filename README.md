@@ -5,6 +5,12 @@ mail in Gmail, clicks OK, and closes the FortiClient window once the VPN is up.
 You still click Connect and enter the password yourself; only the token step and
 the window cleanup are automated.
 
+## Demo
+
+29-second screen recording of a connect: the token dialog appears, fills itself,
+and the FortiClient window closes once the VPN is up.
+[demo.mov](https://github.com/nachum-shmilovitz-66/forti-auto-login/releases/download/v1.0.0/demo.mov)
+
 ## How it works
 
 1. `lib/token-dialog.applescript` polls System Events for a window of any `Forti*`
