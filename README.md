@@ -108,6 +108,23 @@ Gmail profile, and add the app to Login Items. Without notarization macOS shows
 Privacy & Security > Open Anyway. The app is signed with a Developer ID
 certificate, so permission grants survive updates.
 
+## Releases
+
+Download the latest DMG from
+https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
+
+| Version | Date       | Notes |
+|---------|------------|-------|
+| 1.0.0   | 2026-09-03 | First release: menu bar app, Settings window with validated email, token dialog auto-fill from Gmail, window auto-close, styled DMG. |
+
+To cut a new release: bump `VERSION`, then
+
+```bash
+./make-dmg.sh && gh release create v$(cat VERSION) "dist/Forti Auto Login $(cat VERSION).dmg" --title "Forti Auto Login $(cat VERSION)" --notes "..."
+```
+
+Add a row to the table above.
+
 ## Status / caveats
 
 - The dialog detection and the fill/OK step were verified against a mock secure-text
