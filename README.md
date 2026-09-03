@@ -7,8 +7,10 @@ the window cleanup are automated.
 
 ## Demo
 
-29-second screen recording of a connect: the token dialog appears, fills itself,
-and the FortiClient window closes once the VPN is up.
+![Forti Auto Login demo](docs/demo.gif)
+
+The token dialog appears, fills itself, and the FortiClient window closes once the
+VPN is up. Full-quality recording:
 [demo.mov](https://github.com/nachum-shmilovitz-66/forti-auto-login/releases/download/v1.0.0/demo.mov)
 
 ## How it works
