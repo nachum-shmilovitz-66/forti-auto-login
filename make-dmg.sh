@@ -70,15 +70,18 @@ on run argv
 			set current view of container window to icon view
 			set toolbar visible of container window to false
 			set statusbar visible of container window to false
+			try
+				set pathbar visible of container window to false
+			end try
 			set sidebar width of container window to 0
-			set the bounds of container window to {200, 120, 860, 640}
+			set the bounds of container window to {200, 120, 860, 660}
 			set opts to the icon view options of container window
 			set arrangement of opts to not arranged
 			set icon size of opts to 128
 			set text size of opts to 14
 			set position of item (appName & ".app") of container window to {165, 150}
 			set position of item "Applications" of container window to {495, 150}
-			set position of item "READ ME FIRST.txt" of container window to {330, 390}
+			set position of item "READ ME FIRST.txt" of container window to {330, 350}
 			close
 			open
 			update without registering applications
