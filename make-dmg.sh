@@ -47,6 +47,14 @@ If macOS says the app "could not be verified": System Settings >
 Privacy & Security > scroll down > Open Anyway.
 TXT
 
+# A volume with the same name must not be mounted (e.g. a previous DMG opened
+# for review): Finder would apply the layout to that one instead of ours.
+while [[ -d "/Volumes/$VOL" ]]; do
+    echo "ejecting already-mounted volume '$VOL'"
+    hdiutil detach "/Volumes/$VOL" -force -quiet || { echo "cannot eject /Volumes/$VOL"; exit 1; }
+    sleep 1
+done
+
 # read-write image first, so Finder can store the window layout in it
 hdiutil create -volname "$VOL" -srcfolder "$STAGE" -ov -format UDRW -quiet "$RW"
 rm -rf "$STAGE"
@@ -75,12 +83,19 @@ on run argv
 			open
 			update without registering applications
 			delay 2
+			-- read back and verify; a wrong value here means the layout did not stick
+			set sz to icon size of the icon view options of container window
+			set posApp to position of item (appName & ".app") of container window
 			close
+			if sz is not 128 then error "icon size is " & sz & ", expected 128"
+			if item 1 of posApp is not 165 then error "app icon position is " & (item 1 of posApp) & ", expected 165"
 		end tell
 	end tell
+	return "layout verified: icon size " & sz & ", app at " & (item 1 of posApp) & "," & (item 2 of posApp)
 end run
 APPLESCRIPT
 sync
+[[ -f "/Volumes/$VOL/.DS_Store" ]] || { echo "no .DS_Store written, layout lost"; hdiutil detach "$DEV" -quiet; exit 1; }
 hdiutil detach "$DEV" -quiet
 hdiutil convert "$RW" -format UDZO -o "$DMG" -quiet
 rm -f "$RW"
