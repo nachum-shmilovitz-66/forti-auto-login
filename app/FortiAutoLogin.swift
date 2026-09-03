@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let confPath = NSString(string: "~/.forti-auto-login.conf").expandingTildeInPath
     private var settingsWindow: NSWindow?
     private let emailField = NSTextField()
-    private let domainField = NSTextField()
+    private let errorLabel = NSTextField(labelWithString: "")
     private let prefixField = NSTextField()
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         accessibilityItem = menu.addItem(withTitle: "Grant Accessibility Permission…",
                                          action: #selector(openAccessibility), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit FortiAutoLogin", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit Forti Auto Login", action: #selector(quit), keyEquivalent: "q")
         statusItem.menu = menu
 
         // UI scripting of the token dialog needs Accessibility for this app
@@ -49,6 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         startWatcher()
+        // first run: no email yet -> open Settings right away
+        if !isValidEmail(readConf()["GMAIL_ACCOUNT"] ?? "") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.showSettings() }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.refresh() }
         refresh()
     }
@@ -106,8 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func writeConf(_ values: [String: String]) {
-        var lines = ["# written by FortiAutoLogin Settings; sourced by forti-auto-login.sh"]
-        for key in ["GMAIL_ACCOUNT", "GMAIL_DOMAIN", "VPN_IP_PREFIX"] {
+        var lines = ["# written by Forti Auto Login Settings; sourced by forti-auto-login.sh"]
+        for key in ["GMAIL_ACCOUNT", "VPN_IP_PREFIX"] {
             let v = (values[key] ?? "").trimmingCharacters(in: .whitespaces)
                 .replacingOccurrences(of: "\"", with: "").replacingOccurrences(of: "$", with: "")
             if !v.isEmpty { lines.append("\(key)=\"\(v)\"") }
@@ -119,17 +123,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsWindow == nil { settingsWindow = buildSettingsWindow() }
         let conf = readConf()
         emailField.stringValue = conf["GMAIL_ACCOUNT"] ?? ""
-        domainField.stringValue = conf["GMAIL_DOMAIN"] ?? ""
         prefixField.stringValue = conf["VPN_IP_PREFIX"] ?? ""
+        errorLabel.stringValue = ""
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
         settingsWindow?.makeFirstResponder(emailField)
     }
 
+    private func isValidEmail(_ s: String) -> Bool {
+        let re = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+        return s.range(of: re, options: .regularExpression) != nil
+    }
+
     @objc private func saveSettings() {
-        writeConf(["GMAIL_ACCOUNT": emailField.stringValue,
-                   "GMAIL_DOMAIN": domainField.stringValue,
+        let email = emailField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard isValidEmail(email) else {
+            errorLabel.stringValue = "Enter a valid email address, e.g. first.last@example.com"
+            settingsWindow?.makeFirstResponder(emailField)
+            NSSound.beep()
+            return
+        }
+        writeConf(["GMAIL_ACCOUNT": email,
                    "VPN_IP_PREFIX": prefixField.stringValue])
         settingsWindow?.orderOut(nil)
         startWatcher()
@@ -141,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildSettingsWindow() -> NSWindow {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 210),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "FortiAutoLogin Settings"
+        w.title = "Forti Auto Login Settings"
         w.isReleasedWhenClosed = false
 
         func row(_ label: String, _ field: NSTextField, _ placeholder: String) -> NSView {
@@ -156,11 +171,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return h
         }
         let hint = NSTextField(wrappingLabelWithString:
-            "Email empty = use whichever Google account on the mail domain Chrome is signed in to. " +
+            "The Google account that receives the FortiClient AuthCode mail. Chrome must be signed in to it. " +
             "VPN prefix empty = any FortiClient connection.")
         hint.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
         hint.textColor = .secondaryLabelColor
         hint.widthAnchor.constraint(equalToConstant: 428).isActive = true
+        errorLabel.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        errorLabel.textColor = .systemRed
+        errorLabel.widthAnchor.constraint(equalToConstant: 428).isActive = true
 
         let save = NSButton(title: "Save & Restart", target: self, action: #selector(saveSettings))
         save.keyEquivalent = "\r"
@@ -171,10 +189,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buttons.alignment = .centerY
 
         let v = NSStackView(views: [
-            row("Email address:", emailField, "first.last@em.aus.com"),
-            row("Mail domain:", domainField, "em.aus.com"),
-            row("VPN IP prefix:", prefixField, "e.g. 10.212."),
-            hint, buttons])
+            row("Email address:", emailField, "first.last@example.com"),
+            row("VPN IP prefix:", prefixField, "optional, e.g. 10.0."),
+            hint, errorLabel, buttons])
         v.orientation = .vertical
         v.alignment = .trailing
         v.spacing = 10
@@ -196,17 +213,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let running = watcher?.isRunning ?? false
         let trusted = AXIsProcessTrusted()
         accessibilityItem.isHidden = trusted
-        statusLine.title = (!trusted ? "NO ACCESSIBILITY PERMISSION" : running ? "Watching" : "Stopped")
+        let hasEmail = isValidEmail(readConf()["GMAIL_ACCOUNT"] ?? "")
+        statusLine.title = (!trusted ? "NO ACCESSIBILITY PERMISSION" : !hasEmail ? "SET YOUR EMAIL IN SETTINGS" : running ? "Watching" : "Stopped")
             + (last.isEmpty ? "" : "  ·  " + last)
         let busy = running && (last.contains("token dialog detected") || last.contains("got code"))
         setIcon(active: busy)
-        statusItem.button?.toolTip = running ? "FortiClient auto-login: watching for the token dialog"
-                                             : "FortiClient auto-login: watcher stopped"
+        statusItem.button?.toolTip = running ? "Forti Auto Login: watching for the token dialog"
+                                             : "Forti Auto Login: watcher stopped"
     }
 
     private func setIcon(active: Bool) {
         let name = active ? "lock.shield.fill" : "lock.shield"
-        if let img = NSImage(systemSymbolName: name, accessibilityDescription: "FortiClient auto-login") {
+        if let img = NSImage(systemSymbolName: name, accessibilityDescription: "Forti Auto Login") {
             img.isTemplate = true
             statusItem.button?.image = img
         } else {

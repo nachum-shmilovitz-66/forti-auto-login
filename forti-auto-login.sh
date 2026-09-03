@@ -10,17 +10,17 @@
 #   -> wait until the VPN interface is up, then close the FortiClient window.
 set -u
 
-# ============================ CONFIG (edit me) ==============================
-GMAIL_ACCOUNT="nachum.shmilovitz@em.aus.com"            # your mailbox that receives the AuthCode mail,
-                            # e.g. first.last@em.aus.com. Leave empty to use
-                            # whichever Google login on GMAIL_DOMAIN Chrome has.
-GMAIL_DOMAIN="em.aus.com"   # company mail domain (used when GMAIL_ACCOUNT is empty)
-VPN_IP_PREFIX=""            # optional: tunnel address prefix, e.g. 10.212.
+# ============================ CONFIG ========================================
+GMAIL_ACCOUNT=""            # the mailbox that receives the AuthCode mail,
+                            # e.g. first.last@example.com. Usually set from the
+                            # menu bar app's Settings window instead of here.
+VPN_IP_PREFIX=""            # optional: tunnel address prefix, e.g. 10.0.
                             # empty = any new utun address after the dialog
 # ============================================================================
-# Per-user overrides written by the menu bar app's Settings window:
+# Per-user settings written by the menu bar app's Settings window:
 CONF="$HOME/.forti-auto-login.conf"
 [[ -f "$CONF" ]] && source "$CONF"
+GMAIL_DOMAIN="${GMAIL_ACCOUNT#*@}"      # used to pick the Chrome profile
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$DIR/lib"
@@ -75,7 +75,14 @@ fetch_code() {   # $1 = since (ISO-8601 UTC); prints the code or returns 1
     return 1
 }
 
+valid_email() { [[ "$1" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; }
+
 handle_dialog() {
+    if ! valid_email "$GMAIL_ACCOUNT"; then
+        log "no valid email configured (GMAIL_ACCOUNT='$GMAIL_ACCOUNT'); set it in Settings"
+        notify "Set your email address in Settings"
+        return 1
+    fi
     # mail is sent when the dialog appears; accept anything from 60 s before that
     local since code
     since="$(date -u -v-60S '+%Y-%m-%dT%H:%M:%SZ')"
@@ -116,7 +123,9 @@ case "${1:-}" in
             while dialog_present; do sleep 2; done
         done ;;
     --dump)   osascript "$LIB/dump-ui.applescript" "${2:-FortiClient}" ;;
-    --test-gmail) osascript "$LIB/gmail-code.applescript" "$(date -u -v-1d '+%Y-%m-%dT%H:%M:%SZ')" "$GMAIL_ACCOUNT" "$GMAIL_DOMAIN" ;;
+    --test-gmail)
+        valid_email "$GMAIL_ACCOUNT" || { echo "no valid email configured (GMAIL_ACCOUNT='$GMAIL_ACCOUNT')"; exit 1; }
+        osascript "$LIB/gmail-code.applescript" "$(date -u -v-1d '+%Y-%m-%dT%H:%M:%SZ')" "$GMAIL_ACCOUNT" "$GMAIL_DOMAIN" ;;
     --help|-h) sed -n '2,10p' "$0" ;;
     *)
         log "waiting for token dialog (one shot)"

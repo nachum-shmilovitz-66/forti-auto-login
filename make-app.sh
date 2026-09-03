@@ -1,13 +1,14 @@
 #!/bin/bash
-# Builds ~/Applications/FortiAutoLogin.app: a menu bar app (shield icon) that runs
+# Builds "~/Applications/Forti Auto Login.app": a menu bar app (shield icon) that runs
 # the bundled forti-auto-login.sh --watch as a child process. Self-contained:
 # the script and lib/ are copied into Contents/Resources, so the app can be
 # moved or shipped in a DMG (see make-dmg.sh). Menu: status, Open Log,
 # Restart Watcher, Quit. macOS asks for Accessibility / Automation permissions
-# once, under the name "FortiAutoLogin". Add the app to Login Items to autostart.
+# once, under the name "Forti Auto Login". Add the app to Login Items to autostart.
 set -eu
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="$HOME/Applications/FortiAutoLogin.app"
+APP="$HOME/Applications/Forti Auto Login.app"
+VERSION="$(cat "$DIR/VERSION")"
 BUILD="$DIR/app/build"
 ID="com.nshmilovitz.fortiautologin"
 
@@ -16,7 +17,7 @@ echo "compiling…"
 swiftc -O -swift-version 5 -framework AppKit -o "$BUILD/FortiAutoLogin" "$DIR/app/FortiAutoLogin.swift"
 
 # stop a running copy (and its watcher) before replacing the bundle
-pkill -f "FortiAutoLogin.app/Contents/MacOS/FortiAutoLogin" 2>/dev/null || true
+pkill -f "Forti Auto Login.app/Contents/MacOS/FortiAutoLogin" 2>/dev/null || true
 pkill -f "^/bin/bash .*forti-auto-login\.sh --watch$" 2>/dev/null || true
 sleep 1
 
@@ -38,13 +39,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>FortiAutoLogin</string>
-  <key>CFBundleDisplayName</key><string>FortiAutoLogin</string>
+  <key>CFBundleName</key><string>Forti Auto Login</string>
+  <key>CFBundleDisplayName</key><string>Forti Auto Login</string>
   <key>CFBundleIdentifier</key><string>$ID</string>
   <key>CFBundleExecutable</key><string>FortiAutoLogin</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>1</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
@@ -62,4 +63,4 @@ SIGN_ID="$(printf '%s' "$IDS" | grep -o '"Developer ID Application: [^"]*"' | he
 codesign --force --sign "${SIGN_ID:--}" --identifier "$ID" --timestamp=none "$APP" >/dev/null
 echo "signed as: ${SIGN_ID:-ad-hoc}"
 echo "built $APP (scripts bundled inside)"
-echo "start:  open -a FortiAutoLogin      (quit from its menu bar icon)"
+echo "start:  open -a \"Forti Auto Login\"      (quit from its menu bar icon)"
