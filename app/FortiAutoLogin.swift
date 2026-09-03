@@ -28,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setIcon(active: false)
 
         let menu = NSMenu()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let title = NSMenuItem(title: "Forti Auto Login \(version)", action: nil, keyEquivalent: "")
+        title.isEnabled = false
+        menu.addItem(title)
         statusLine.isEnabled = false
         menu.addItem(statusLine)
         menu.addItem(.separator())
@@ -124,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let conf = readConf()
         emailField.stringValue = conf["GMAIL_ACCOUNT"] ?? ""
         prefixField.stringValue = conf["VPN_IP_PREFIX"] ?? ""
-        errorLabel.stringValue = ""
+        showError("")
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
@@ -139,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func saveSettings() {
         let email = emailField.stringValue.trimmingCharacters(in: .whitespaces)
         guard isValidEmail(email) else {
-            errorLabel.stringValue = "Enter a valid email address, e.g. first.last@example.com"
+            showError("Enter a valid email address, e.g. first.last@example.com")
             settingsWindow?.makeFirstResponder(emailField)
             NSSound.beep()
             return
@@ -153,51 +157,84 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func cancelSettings() { settingsWindow?.orderOut(nil) }
 
+    private var settingsStack: NSStackView?
+
+    private func fitSettingsWindow() {
+        guard let w = settingsWindow, let v = settingsStack else { return }
+        v.layoutSubtreeIfNeeded()
+        w.setContentSize(v.fittingSize)
+    }
+
+    private func showError(_ text: String) {
+        errorLabel.stringValue = text
+        errorLabel.isHidden = text.isEmpty
+        fitSettingsWindow()
+    }
+
     private func buildSettingsWindow() -> NSWindow {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 210),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 200),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Forti Auto Login Settings"
         w.isReleasedWhenClosed = false
 
+        let labelWidth: CGFloat = 110, fieldWidth: CGFloat = 320
+        let contentWidth = labelWidth + 8 + fieldWidth
+
         func row(_ label: String, _ field: NSTextField, _ placeholder: String) -> NSView {
             let l = NSTextField(labelWithString: label)
             l.alignment = .right
-            l.widthAnchor.constraint(equalToConstant: 110).isActive = true
+            l.widthAnchor.constraint(equalToConstant: labelWidth).isActive = true
             field.placeholderString = placeholder
-            field.widthAnchor.constraint(equalToConstant: 310).isActive = true
+            field.widthAnchor.constraint(equalToConstant: fieldWidth).isActive = true
             let h = NSStackView(views: [l, field])
             h.orientation = .horizontal
+            h.alignment = .firstBaseline
             h.spacing = 8
             return h
         }
-        let hint = NSTextField(wrappingLabelWithString:
-            "The Google account that receives the FortiClient AuthCode mail. Chrome must be signed in to it. " +
-            "VPN prefix empty = any FortiClient connection.")
-        hint.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        hint.textColor = .secondaryLabelColor
-        hint.widthAnchor.constraint(equalToConstant: 428).isActive = true
-        errorLabel.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        func note(_ text: String, color: NSColor) -> NSTextField {
+            let t = NSTextField(wrappingLabelWithString: text)
+            t.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+            t.textColor = color
+            t.preferredMaxLayoutWidth = contentWidth
+            t.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
+            return t
+        }
+        let hint = note("The Google account that receives the FortiClient AuthCode mail. " +
+                        "Chrome must be signed in to it. Leave the VPN prefix empty to accept any FortiClient connection.",
+                        color: .secondaryLabelColor)
+        let err = note("", color: .systemRed)
+        errorLabel.font = err.font
         errorLabel.textColor = .systemRed
-        errorLabel.widthAnchor.constraint(equalToConstant: 428).isActive = true
+        errorLabel.lineBreakMode = .byWordWrapping
+        errorLabel.preferredMaxLayoutWidth = contentWidth
+        errorLabel.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
+        errorLabel.isHidden = true
 
         let save = NSButton(title: "Save & Restart", target: self, action: #selector(saveSettings))
         save.keyEquivalent = "\r"
         let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelSettings))
         cancel.keyEquivalent = "\u{1b}"
-        let buttons = NSStackView(views: [cancel, save])
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let buttons = NSStackView(views: [spacer, cancel, save])
         buttons.orientation = .horizontal
         buttons.alignment = .centerY
+        buttons.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
 
         let v = NSStackView(views: [
             row("Email address:", emailField, "first.last@example.com"),
             row("VPN IP prefix:", prefixField, "optional, e.g. 10.0."),
             hint, errorLabel, buttons])
         v.orientation = .vertical
-        v.alignment = .trailing
+        v.alignment = .leading
         v.spacing = 10
-        v.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        v.setCustomSpacing(16, after: hint)
+        v.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
         v.translatesAutoresizingMaskIntoConstraints = false
         w.contentView = v
+        settingsStack = v
+        w.setContentSize(v.fittingSize)
         return w
     }
 
