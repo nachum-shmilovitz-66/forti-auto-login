@@ -17,10 +17,21 @@ GMAIL_ACCOUNT=""            # the mailbox that receives the AuthCode mail,
 VPN_IP_PREFIX=""            # optional: tunnel address prefix, e.g. 10.0.
                             # empty = any new utun address after the dialog
 # ============================================================================
-# Per-user settings written by the menu bar app's Settings window:
+# Per-user settings written by the menu bar app's Settings window. Parsed, not
+# sourced: only the two known keys, quotes stripped, nothing executed.
 CONF="$HOME/.forti-auto-login.conf"
-[[ -f "$CONF" ]] && source "$CONF"
+if [[ -f "$CONF" ]]; then
+    while IFS='=' read -r k v; do
+        v="${v%\"}"; v="${v#\"}"
+        case "$k" in
+            GMAIL_ACCOUNT) GMAIL_ACCOUNT="$v" ;;
+            VPN_IP_PREFIX) VPN_IP_PREFIX="$v" ;;
+        esac
+    done < "$CONF"
+fi
+[[ "$VPN_IP_PREFIX" =~ ^[0-9.]*$ ]] || { echo "invalid VPN_IP_PREFIX '$VPN_IP_PREFIX' (digits and dots only)" >&2; VPN_IP_PREFIX=""; }
 GMAIL_DOMAIN="${GMAIL_ACCOUNT#*@}"      # used to pick the Chrome profile
+umask 077                               # log and state files are private
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$DIR/lib"
@@ -92,7 +103,7 @@ handle_dialog() {
     if ! code="$(fetch_code "$since")"; then
         log "no AuthCode mail within ${MAIL_TIMEOUT}s"; notify "No AuthCode mail found"; return 1
     fi
-    log "got code $code, filling dialog"
+    log "got code ${code:0:2}**** (issued $(cat "$STATE")), filling dialog"
     if ! osascript "$LIB/token-dialog.applescript" fill "$code" >/dev/null 2>>"$LOG"; then
         log "failed to fill dialog"; notify "Failed to fill token dialog"; return 1
     fi

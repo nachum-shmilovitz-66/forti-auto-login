@@ -142,5 +142,17 @@ Add a row to the table above.
   `~/.forti-auto-login.last`, so a second dialog never gets the previous code.
 - The Gmail feed only lists **unread** inbox mail. Do not open the AuthCode mails
   before the script reads them (you no longer need to).
-- Security: this makes the second factor as strong as the logged-in Chrome session
-  on this Mac. Anyone with the unlocked machine could connect the VPN.
+## Security notes
+
+- This makes the email second factor as strong as the unlocked Mac plus its
+  signed-in Chrome session. Anyone at the unlocked machine could connect the VPN.
+- Chrome's "Allow JavaScript from Apple Events" lets every app the user has approved
+  for Chrome automation run JavaScript in Chrome pages. Enable it only in the Gmail
+  profile.
+- Nothing leaves the machine. No passwords are stored. The config file holds only the
+  email address and VPN prefix and is parsed, never executed; log, state, and config
+  files are created mode 600, and one-time codes are masked in the log.
+- Any unread inbox mail whose subject is `AuthCode: nnnnnn` is accepted, sender not
+  checked; a spoofed mail can make a login fail, not succeed.
+- Prefer a notarized DMG (`./make-dmg.sh --notarize`) so users are not trained to
+  click "Open Anyway".

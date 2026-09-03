@@ -138,6 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !v.isEmpty { lines.append("\(key)=\"\(v)\"") }
         }
         try? (lines.joined(separator: "\n") + "\n").write(toFile: confPath, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: confPath)
     }
 
     @objc private func showSettings() {
@@ -165,8 +166,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSSound.beep()
             return
         }
-        writeConf(["GMAIL_ACCOUNT": email,
-                   "VPN_IP_PREFIX": prefixField.stringValue])
+        let prefix = prefixField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard prefix.range(of: "^[0-9.]*$", options: .regularExpression) != nil else {
+            showError("VPN IP prefix may contain only digits and dots, e.g. 10.0.")
+            settingsWindow?.makeFirstResponder(prefixField)
+            NSSound.beep()
+            return
+        }
+        writeConf(["GMAIL_ACCOUNT": email, "VPN_IP_PREFIX": prefix])
         settingsWindow?.orderOut(nil)
         startWatcher()
         refresh()

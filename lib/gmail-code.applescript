@@ -98,6 +98,21 @@ on tryTabs(tabList, startJS, parseJS)
 	return lastErr
 end tryTabs
 
+-- JS single-quoted string literal from arbitrary text
+on jsStr(t)
+	set out to ""
+	repeat with c in characters of t
+		set c to c as text
+		if c is "\\" or c is "'" then set out to out & "\\"
+		if c is linefeed or c is return then
+			set out to out & " "
+		else
+			set out to out & c
+		end if
+	end repeat
+	return "'" & out & "'"
+end jsStr
+
 on run argv
 	set sinceISO to item 1 of argv
 	set email to item 2 of argv
@@ -105,7 +120,7 @@ on run argv
 	set afterISO to ""
 	if (count of argv) > 3 then set afterISO to item 4 of argv
 	set libDir to do shell script "dirname " & quoted form of (POSIX path of (path to me))
-	set startJS to "window.__fcEmail='" & email & "';window.__fcDomain='" & domain & "';window.__fcSince='" & sinceISO & "';window.__fcAfter='" & afterISO & "';" & readFile(libDir & "/gmail-start.js")
+	set startJS to "window.__fcEmail=" & jsStr(email) & ";window.__fcDomain=" & jsStr(domain) & ";window.__fcSince=" & jsStr(sinceISO) & ";window.__fcAfter=" & jsStr(afterISO) & ";" & readFile(libDir & "/gmail-start.js")
 	set parseJS to readFile(libDir & "/gmail-parse.js")
 
 	set res to my tryTabs(my gmailTabs(email, domain), startJS, parseJS)
