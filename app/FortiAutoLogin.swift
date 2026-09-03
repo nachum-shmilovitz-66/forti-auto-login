@@ -28,10 +28,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setIcon(active: false)
 
         let menu = NSMenu()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let title = NSMenuItem(title: "Forti Auto Login \(version)", action: nil, keyEquivalent: "")
-        title.isEnabled = false
-        menu.addItem(title)
         statusLine.isEnabled = false
         menu.addItem(statusLine)
         menu.addItem(.separator())
@@ -42,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         accessibilityItem = menu.addItem(withTitle: "Grant Accessibility Permission…",
                                          action: #selector(openAccessibility), keyEquivalent: "")
         menu.addItem(.separator())
+        menu.addItem(withTitle: "About Forti Auto Login (\(appVersion))", action: #selector(showAbout), keyEquivalent: "")
         menu.addItem(withTitle: "Quit Forti Auto Login", action: #selector(quit), keyEquivalent: "q")
         statusItem.menu = menu
 
@@ -91,6 +88,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: menu
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    @objc private func showAbout() {
+        let a = NSAlert()
+        a.messageText = "Forti Auto Login \(appVersion)"
+        a.informativeText = "Fills the FortiClient email token dialog from Gmail, clicks OK, " +
+            "and closes the FortiClient window once the VPN is up.\n\n" +
+            "Source and releases: github.com/nachum-shmilovitz-66/forti-auto-login"
+        a.alertStyle = .informational
+        if let icon = NSApp.applicationIconImage { a.icon = icon }
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Open GitHub")
+        NSApp.activate(ignoringOtherApps: true)
+        if a.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.open(URL(string: "https://github.com/nachum-shmilovitz-66/forti-auto-login/releases")!)
+        }
+    }
 
     @objc private func openAccessibility() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
