@@ -50,6 +50,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSHumanReadableCopyright</key><string>© $(date +%Y) Nachum Shmilovitz</string>
   $ICON_KEY
 </dict></plist>
 PLIST

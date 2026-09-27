@@ -3,6 +3,7 @@
 #
 #   ./forti-auto-login.sh          one shot: wait for the token dialog, fill it, close window
 #   ./forti-auto-login.sh --watch  keep running; handle every token dialog that appears
+#   ./forti-auto-login.sh --report problem report zip for support (lib/collect-report.sh)
 #
 # Flow: FortiClient shows "An email message containing a Token Code will be sent..."
 #   -> read newest unread "AuthCode: NNNNNN" mail via the Gmail tab in Chrome
@@ -59,7 +60,7 @@ dialog_present() {
     fi
     [[ "$out" == found:* ]]
 }
-utun_addrs()     { ifconfig | awk '/^utun/{i=$1}/inet /{if(i!="")print i,$2}'; }
+utun_addrs()     { ifconfig | awk '/^[^ \t]/{i=($1 ~ /^utun/)?$1:""} /inet /{if(i!="")print i,$2}'; }
 BASELINE=""
 vpn_up() {
     if [[ -n "$VPN_IP_PREFIX" ]]; then ifconfig | grep -qF "inet ${VPN_IP_PREFIX}"; return; fi
@@ -68,21 +69,23 @@ vpn_up() {
 }
 
 STATE="$HOME/.forti-auto-login.last"        # issued time of the last code used
-fetch_code() {   # $1 = since (ISO-8601 UTC); prints the code or returns 1
-    local since="$1" deadline=$(( $(date +%s) + MAIL_TIMEOUT )) res after
+fetch_code() {   # $1 = since (ISO-8601 UTC); prints the code, or returns 1 (no mail) / 2 (dialog gone)
+    local since="$1" deadline=$(( $(date +%s) + MAIL_TIMEOUT )) res="" after tries=0
     after="$(cat "$STATE" 2>/dev/null || true)"
     local may_open=1   # open a Gmail tab at most once per dialog, never when one exists
     while (( $(date +%s) < deadline )); do
         res="$(FC_MAY_OPEN=$may_open osascript "$LIB/gmail-code.applescript" "$since" "$GMAIL_ACCOUNT" "$GMAIL_DOMAIN" "$after" 2>&1)"
-        may_open=0
+        may_open=0; tries=$((tries + 1))
         case "$res" in
             [0-9]*\|*) printf '%s' "${res#*|}" > "$STATE"; echo "${res%%|*}"; return 0 ;;
             none)      ;;
             *)         log "gmail: $res" ;;
         esac
-        dialog_present || { log "dialog gone while waiting for mail"; return 2; }
+        # "none" = Gmail was read, but no unread AuthCode mail newer than since/after
+        dialog_present || { log "dialog gone while waiting for mail (Gmail tries: $tries, last result: $res, last used code issued: ${after:-none})"; return 2; }
         sleep 3
     done
+    log "Gmail tries: $tries, last result: $res, last used code issued: ${after:-none}"
     return 1
 }
 
@@ -95,12 +98,14 @@ handle_dialog() {
         return 1
     fi
     # mail is sent when the dialog appears; accept anything from 60 s before that
-    local since code
+    local since code rc
     since="$(date -u -v-60S '+%Y-%m-%dT%H:%M:%SZ')"
     BASELINE="$(utun_addrs)"
     log "token dialog detected, waiting for AuthCode mail (since $since)"
     notify "Token dialog detected, reading Gmail..."
-    if ! code="$(fetch_code "$since")"; then
+    code="$(fetch_code "$since")"; rc=$?
+    if (( rc == 2 )); then log "gave up: dialog closed before the code was found"; return 1; fi
+    if (( rc != 0 )); then
         log "no AuthCode mail within ${MAIL_TIMEOUT}s"; notify "No AuthCode mail found"; return 1
     fi
     log "got code ${code:0:2}**** (issued $(cat "$STATE")), filling dialog"
@@ -113,7 +118,10 @@ handle_dialog() {
         if dialog_present; then log "dialog still open (code rejected?)"; notify "Token rejected"; return 1; fi
         sleep 1
     done
-    if ! vpn_up; then log "tunnel not up after ${CONNECT_TIMEOUT}s"; notify "VPN did not connect"; return 1; fi
+    if ! vpn_up; then
+        log "tunnel not up after ${CONNECT_TIMEOUT}s (VPN_IP_PREFIX='$VPN_IP_PREFIX'; utun before: $(tr '\n' ' ' <<< "$BASELINE"); now: $(utun_addrs | tr '\n' ' '))"
+        notify "VPN did not connect"; return 1
+    fi
     sleep "$CLOSE_DELAY"
     log "VPN up, closing window: $(osascript "$LIB/close-main-window.applescript" 2>&1)"
     #notify "VPN connected"
@@ -126,7 +134,7 @@ wait_for_dialog() {
 mkdir -p "$(dirname "$LOG")"
 case "${1:-}" in
     --watch)
-        log "watching for FortiClient token dialog"
+        log "watching for FortiClient token dialog (app ${FAL_APP_VERSION:-none}, macOS $(sw_vers -productVersion))"
         while :; do
             wait_for_dialog
             handle_dialog || sleep 10
@@ -134,10 +142,11 @@ case "${1:-}" in
             while dialog_present; do sleep 2; done
         done ;;
     --dump)   osascript "$LIB/dump-ui.applescript" "${2:-FortiClient}" ;;
+    --report) exec "$LIB/collect-report.sh" ${2:+"$2"} ;;
     --test-gmail)
         valid_email "$GMAIL_ACCOUNT" || { echo "no valid email configured (GMAIL_ACCOUNT='$GMAIL_ACCOUNT')"; exit 1; }
         osascript "$LIB/gmail-code.applescript" "$(date -u -v-1d '+%Y-%m-%dT%H:%M:%SZ')" "$GMAIL_ACCOUNT" "$GMAIL_DOMAIN" ;;
-    --help|-h) sed -n '2,10p' "$0" ;;
+    --help|-h) sed -n '2,11p' "$0" ;;
     *)
         log "waiting for token dialog (one shot)"
         wait_for_dialog

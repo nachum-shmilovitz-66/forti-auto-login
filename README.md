@@ -58,6 +58,7 @@ opened at most once per dialog, and never when a signed-in tab exists.
 ./forti-auto-login.sh             # one shot: handle the next dialog, then exit
 ./forti-auto-login.sh --test-gmail   # prints newest AuthCode from the last 24h
 ./forti-auto-login.sh --dump      # prints FortiClient's accessibility tree (debug)
+./forti-auto-login.sh --report    # problem report zip for support (see below)
 ```
 
 Log: `~/Library/Logs/forti-auto-login.log`. `FC_DEBUG=1 ./forti-auto-login.sh --test-gmail`
@@ -87,7 +88,8 @@ Compiles `app/FortiAutoLogin.swift` (needs Xcode command line tools) into
 `~/Applications/Forti Auto Login.app`: a shield icon in the menu bar that runs the
 watcher as a child process. The script and `lib/` are copied inside the bundle, so
 the app is self-contained; rerun `make-app.sh` after editing the scripts. Filled shield = handling a dialog right now. Its menu
-shows the last log line and offers Open Log, Restart Watcher, Settings…, Quit.
+shows a short status (hover it for the last log line) and offers Open Log, Restart Watcher, Settings…, Report a
+Problem…, About (version and GitHub link), Quit.
 Settings… is a small window for the email address (validated) and VPN prefix; it
 writes `~/.forti-auto-login.conf`, which the script sources after its CONFIG block,
 and restarts the watcher. Non-technical colleagues never touch the script. The Finder
@@ -101,20 +103,49 @@ open -a "Forti Auto Login"
 Quit from the menu bar icon; that also stops the watcher. Do not run the Terminal
 watcher at the same time.
 
+## Reporting a problem
+
+When a login is not filled in, the user picks **Report a Problem…** in the menu bar
+icon, optionally types what happened, and clicks Create Report. After up to a minute
+the app shows the zip (`forti-auto-login-report-<date>-<time>.zip`, kept in
+`~/Library/Logs/Forti Auto Login Reports/`) in Finder, ready to attach to a mail or
+chat. Start with `summary.txt` in it: the key facts and a **Likely causes** list
+(missing permissions, no email set, Chrome profile or JavaScript switch, Gmail
+errors, extra app copies, the outcome of the last attempt).
+
+It runs `lib/collect-report.sh` as a child of the app, so the permission checks see
+the app's own grants. When the app itself does not start, run it from Terminal
+(the checks then use Terminal's permissions):
+
+```bash
+"/Applications/Forti Auto Login.app/Contents/Resources/forti-auto-login.sh" --report
+```
+
+No codes, passwords, cookies or mail content are collected; email addresses are
+masked to first and last letter plus the domain. The file layout and summary keys
+are in [docs/problem-reports.md](docs/problem-reports.md), which a Windows port must
+follow.
+
 ## DMG for colleagues
 
 ```bash
 ./make-dmg.sh              # dist/Forti Auto Login <version>.dmg (version from VERSION)
 ./make-dmg.sh --notarize   # also notarize + staple (see script header for setup)
+./make-pkg.sh              # only the installer: dist/Forti Auto Login <version>.pkg
 ```
 
-The DMG holds the self-contained app, an Applications shortcut, and this README.
-Colleagues drag the app to Applications, open it, grant Accessibility plus the two
-Automation prompts, enable Chrome's "Allow JavaScript from Apple Events" in their
-Gmail profile, and add the app to Login Items. Without notarization macOS shows
-"Apple could not verify..." on first open; they get past it via System Settings >
-Privacy & Security > Open Anyway. The app is signed with a Developer ID
-certificate, so permission grants survive updates.
+The DMG holds **Install Forti Auto Login.pkg** and a READ ME FIRST.txt. The
+installer is the standard macOS setup wizard (Introduction, Read Me, Install,
+Summary; pages and scripts in `installer/macos/`). It quits a running copy, installs
+the app into /Applications and starts it for the logged-in user, so the Settings
+window and the permission prompts appear right away. Colleagues then enter their
+email, grant Accessibility plus the two Automation prompts, enable Chrome's "Allow
+JavaScript from Apple Events" in their Gmail profile, and add the app to Login
+Items. The installer is signed with the Developer ID Installer certificate and the
+app with Developer ID Application, so permission grants survive updates. It runs on
+Apple Silicon only, because the app is built for arm64. Without notarization macOS
+blocks the installer on first open; they get past it via System Settings > Privacy
+& Security > Open Anyway.
 
 ## Releases
 
@@ -124,8 +155,9 @@ https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
 | Version | Date       | Notes |
 |---------|------------|-------|
 | 1.0.0   | 2026-09-03 | First release: menu bar app, Settings window with validated email, token dialog auto-fill from Gmail, window auto-close, styled DMG. |
+| 1.0.1   | 2026-09-27 | Setup wizard installer that starts the app when done; Report a Problem (diagnostics zip with likely causes); shorter menu (short status, About, Quit, © in About); clearer watcher log on failures. |
 
-To cut a new release: bump `VERSION`, then
+To cut a new release: bump the patch number in `VERSION`, then
 
 ```bash
 ./make-dmg.sh && gh release create v$(cat VERSION) "dist/Forti Auto Login $(cat VERSION).dmg" --title "Forti Auto Login $(cat VERSION)" --notes "..."

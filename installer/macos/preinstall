@@ -1,0 +1,7 @@
+#!/bin/bash
+# Runs as root before the files are copied: quit a running copy and its watcher,
+# so the bundle can be replaced and the new version starts clean.
+pkill -f "Forti Auto Login.app/Contents/MacOS/FortiAutoLogin" 2>/dev/null
+pkill -f "^/bin/bash .*forti-auto-login\.sh --watch$" 2>/dev/null
+sleep 1
+exit 0

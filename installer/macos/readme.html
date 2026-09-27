@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="color-scheme" content="light dark">
+<style>body { font: 13px -apple-system, sans-serif; line-height: 1.45; } h2 { font-size: 17px; margin: 0 0 10px; } li { margin-bottom: 6px; }</style>
+</head><body>
+<h2>What happens after installing</h2>
+<p>The app starts by itself and shows a shield icon in the menu bar, at the top right
+of the screen. It asks for these once:</p>
+<ol>
+<li><b>Settings window:</b> enter the email address that receives the FortiClient
+AuthCode mail, then click <b>Save &amp; Restart</b>.</li>
+<li><b>Accessibility:</b> macOS asks to let Forti Auto Login control your computer.
+Click <b>Open System Settings</b> and switch <b>Forti Auto Login</b> on.</li>
+<li><b>Automation:</b> when asked, allow Forti Auto Login to control
+<b>System Events</b> and <b>Google Chrome</b>.</li>
+<li><b>Chrome:</b> Chrome must be signed in to that Google account. In a window of
+that Chrome profile, choose <b>View &gt; Developer &gt; Allow JavaScript from Apple
+Events</b>.</li>
+</ol>
+<p>Optional: System Settings &gt; General &gt; Login Items &gt; add
+<b>Forti Auto Login</b>, so it starts after a restart.</p>
+<p>If a login is not filled in: click the shield icon &gt; <b>Report a Problem…</b>
+and send the zip file it creates.</p>
+</body></html>

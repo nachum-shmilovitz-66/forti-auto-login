@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Installer wizard for make-pkg.sh; @VERSION@, @ID@ and @ARCH@ are filled in at build time. -->
+<installer-gui-script minSpecVersion="2">
+    <title>Forti Auto Login @VERSION@</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <readme file="readme.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <pkg-ref id="@ID@"/>
+    <!-- hostArchitectures = the app binary's architectures: other Macs get a clear refusal -->
+    <options customize="never" require-scripts="false" hostArchitectures="@ARCH@"/>
+    <domains enable_localSystem="true" enable_anywhere="false" enable_currentUserHome="false"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="12.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default">
+            <line choice="@ID@"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="@ID@" visible="false">
+        <pkg-ref id="@ID@"/>
+    </choice>
+    <pkg-ref id="@ID@" version="@VERSION@" onConclusion="none">app.pkg</pkg-ref>
+</installer-gui-script>

@@ -1,6 +1,7 @@
 // Menu bar wrapper for forti-auto-login.sh.
 // Shows a shield in the menu bar, runs the watcher as a child process, and
-// offers: current status (last log line), Open Log, Restart Watcher, Quit.
+// offers: a short status (full last log line in its tooltip), Open Log, Restart Watcher, Settings,
+// Report a Problem (zip for support, built by lib/collect-report.sh), About, Quit.
 // The script is bundled in Contents/Resources (copied by make-app.sh), so the
 // app is self-contained and can be shipped as a DMG.
 import AppKit
@@ -10,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let statusLine = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
     private var accessibilityItem: NSMenuItem!
+    private var reportItem: NSMenuItem!
     private var watcher: Process?
     private var timer: Timer?
     // the script and its lib/ are copied into Contents/Resources by make-app.sh;
@@ -38,8 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         accessibilityItem = menu.addItem(withTitle: "Grant Accessibility Permission…",
                                          action: #selector(openAccessibility), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "About Forti Auto Login (\(appVersion))", action: #selector(showAbout), keyEquivalent: "")
-        menu.addItem(withTitle: "Quit Forti Auto Login", action: #selector(quit), keyEquivalent: "q")
+        reportItem = menu.addItem(withTitle: "Report a Problem…", action: #selector(reportProblem), keyEquivalent: "")
+        menu.addItem(withTitle: "About", action: #selector(showAbout), keyEquivalent: "")
+        menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q")
         statusItem.menu = menu
 
         // UI scripting of the token dialog needs Accessibility for this app
@@ -71,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = [scriptPath, "--watch"]
+        p.environment = ProcessInfo.processInfo.environment.merging(["FAL_APP_VERSION": appVersion]) { $1 }
         p.standardOutput = FileHandle.nullDevice   // the script keeps its own log file
         p.standardError = FileHandle.nullDevice
         p.terminationHandler = { [weak self] _ in DispatchQueue.main.async { self?.refresh() } }
@@ -98,7 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         a.messageText = "Forti Auto Login \(appVersion)"
         a.informativeText = "Fills the FortiClient email token dialog from Gmail, clicks OK, " +
             "and closes the FortiClient window once the VPN is up.\n\n" +
-            "Source and releases: github.com/nachum-shmilovitz-66/forti-auto-login"
+            "Source and releases: github.com/nachum-shmilovitz-66/forti-auto-login" +
+            // NSHumanReadableCopyright is written into Info.plist by make-app.sh
+            ((Bundle.main.object(forInfoDictionaryKey: "NSHumanReadableCopyright") as? String).map { "\n\n" + $0 } ?? "")
         a.alertStyle = .informational
         if let icon = NSApp.applicationIconImage { a.icon = icon }
         a.addButton(withTitle: "OK")
@@ -115,6 +121,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openLog() { NSWorkspace.shared.open(URL(fileURLWithPath: logPath)) }
     @objc private func restartWatcher() { startWatcher(); refresh() }
     @objc private func quit() { NSApp.terminate(nil) }
+
+    // MARK: problem report (zip built by lib/collect-report.sh, run as our child
+    // so its permission probes see this app's grants, not Terminal's)
+
+    @objc private func reportProblem() {
+        let a = NSAlert()
+        a.messageText = "Report a Problem"
+        a.informativeText = "Creates a zip file with the log, the settings and checks of the " +
+            "permissions, Chrome and FortiClient that show why the auto-login failed. " +
+            "Send it to whoever supports you.\n\n" +
+            "It contains no codes, passwords or mail; email addresses are partly masked."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 64))
+        field.placeholderString = "Optional: what happened, and roughly when"
+        field.usesSingleLineMode = false
+        field.cell?.wraps = true
+        field.cell?.isScrollable = false
+        a.accessoryView = field
+        a.addButton(withTitle: "Create Report")
+        a.addButton(withTitle: "Cancel")
+        a.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        collectReport(description: field.stringValue)
+    }
+
+    private func collectReport(description: String) {
+        let collector = (scriptPath as NSString).deletingLastPathComponent + "/lib/collect-report.sh"
+        guard FileManager.default.isReadableFile(atPath: collector) else {
+            reportFinished(zip: nil, output: "Report script not found: \(collector)")
+            return
+        }
+        // action nil = disabled by the menu, so a second report cannot start meanwhile
+        reportItem.title = "Creating Report… (up to a minute)"
+        reportItem.action = nil
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = [collector]
+        p.environment = ProcessInfo.processInfo.environment.merging([
+            "FAL_APP_VERSION": appVersion,
+            "FAL_APP_PATH": Bundle.main.bundlePath,
+            "FAL_AX_TRUSTED": AXIsProcessTrusted() ? "1" : "0",
+            "FAL_WATCHER_RUNNING": (watcher?.isRunning ?? false) ? "1" : "0",
+            "FAL_DESCRIPTION": description,
+        ]) { $1 }
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        DispatchQueue.global(qos: .userInitiated).async {
+            var output = "", ok = false
+            do {
+                try p.run()
+                // read until EOF before waiting, so a chatty script cannot fill the pipe and stall
+                output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                p.waitUntilExit()
+                ok = p.terminationStatus == 0
+            } catch { output = "Failed to start the report script: \(error.localizedDescription)" }
+            // the script prints the zip's path as its last line
+            let last = output.split(separator: "\n").last.map(String.init) ?? ""
+            let zip = ok && last.hasSuffix(".zip") && FileManager.default.fileExists(atPath: last) ? last : nil
+            DispatchQueue.main.async { self.reportFinished(zip: zip, output: output) }
+        }
+    }
+
+    private func reportFinished(zip: String?, output: String) {
+        reportItem.title = "Report a Problem…"
+        reportItem.action = #selector(reportProblem)
+        let a = NSAlert()
+        NSApp.activate(ignoringOtherApps: true)
+        guard let zip = zip else {
+            a.messageText = "Could not create the report"
+            a.informativeText = output.split(separator: "\n").suffix(12).joined(separator: "\n")
+            a.alertStyle = .warning
+            a.runModal()
+            return
+        }
+        a.messageText = "Report created"
+        a.informativeText = (zip as NSString).lastPathComponent +
+            "\n\nAttach this file to an email or chat message to whoever supports you."
+        a.addButton(withTitle: "Show in Finder")
+        a.addButton(withTitle: "Done")
+        if a.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: zip)])
+        }
+    }
 
     // MARK: settings (~/.forti-auto-login.conf, sourced by the script)
 
@@ -275,12 +365,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let trusted = AXIsProcessTrusted()
         accessibilityItem.isHidden = trusted
         let hasEmail = isValidEmail(readConf()["GMAIL_ACCOUNT"] ?? "")
-        statusLine.title = (!trusted ? "NO ACCESSIBILITY PERMISSION" : !hasEmail ? "SET YOUR EMAIL IN SETTINGS" : running ? "Watching" : "Stopped")
-            + (last.isEmpty ? "" : "  ·  " + last)
         let busy = running && (last.contains("token dialog detected") || last.contains("got code"))
+        // a failed attempt stays the last log line until the next dialog appears
+        let failed = ["no AuthCode mail within", "failed to fill dialog", "code rejected",
+                      "tunnel not up", "gave up: dialog closed", "cannot inspect windows"].contains { last.contains($0) }
+        // short on purpose: the status sets the menu's width; the full line is in the tooltips
+        statusLine.title = !trusted ? "Needs Accessibility permission"
+            : !hasEmail ? "Set your email in Settings"
+            : !running ? "Stopped"
+            : busy ? "Filling in the code…"
+            : failed ? "Watching · last login failed"
+            : "Watching"
+        statusLine.toolTip = last.isEmpty ? nil : last
         setIcon(active: busy)
-        statusItem.button?.toolTip = running ? "Forti Auto Login: watching for the token dialog"
-                                             : "Forti Auto Login: watcher stopped"
+        statusItem.button?.toolTip = "Forti Auto Login" + (last.isEmpty ? "" : ": " + last)
     }
 
     private func setIcon(active: Bool) {

@@ -1,0 +1,11 @@
+#!/bin/bash
+# Runs as root after the app is in /Applications: start it for the user at the
+# screen, in that user's session, as if they had double-clicked it.
+# $2 = install location (/Applications), $3 = target volume.
+[[ "${3:-/}" == "/" ]] || exit 0                  # installed onto another disk
+APP="${2:-/Applications}/Forti Auto Login.app"
+USER_NAME="$(stat -f%Su /dev/console)"
+case "$USER_NAME" in ""|root|loginwindow|_mbsetupuser) exit 0 ;; esac   # nobody at the screen
+USER_ID="$(id -u "$USER_NAME")" || exit 0
+launchctl asuser "$USER_ID" sudo -u "$USER_NAME" /usr/bin/open "$APP"
+exit 0
