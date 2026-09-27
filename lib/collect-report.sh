@@ -5,6 +5,10 @@
 #
 #   collect-report.sh [output-dir]     prints the path of the zip it wrote
 #
+# The zip goes to ~/Downloads (or output-dir). Downloads is privacy-protected,
+# so macOS asks once; if that is refused, it goes to
+# ~/Library/Logs/Forti Auto Login Reports instead.
+#
 # Run by the menu bar app's "Report a Problem…" item, so the probes run with the
 # app's own permissions, or from Terminal via `forti-auto-login.sh --report`.
 # Never collected: codes (masked), passwords, cookies, mail contents. Email
@@ -23,12 +27,13 @@ LOG="${LOG:-$HOME/Library/Logs/forti-auto-login.log}"
 CONF="$HOME/.forti-auto-login.conf"
 STATE="$HOME/.forti-auto-login.last"
 CHROME_DATA="$HOME/Library/Application Support/Google/Chrome"
-OUT_DIR="${1:-$HOME/Library/Logs/Forti Auto Login Reports}"
+OUT_DIR="${1:-$HOME/Downloads}"
+FALLBACK_DIR="$HOME/Library/Logs/Forti Auto Login Reports"
 NAME="forti-auto-login-report-$(date '+%Y%m%d-%H%M%S')"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/fal-report.XXXXXX")" || exit 1
 trap 'rm -rf "$WORK"' EXIT
 R="$WORK/$NAME"
-mkdir -p "$R" "$OUT_DIR" || exit 1
+mkdir -p "$R" || exit 1
 SUMMARY="$WORK/summary"; FINDINGS="$WORK/findings"
 : > "$SUMMARY"; : > "$FINDINGS"
 
@@ -369,6 +374,10 @@ fi
 } > "$R/summary.txt"
 
 ZIP="$OUT_DIR/$NAME.zip"
-ditto -c -k --keepParent "$R" "$ZIP" || { echo "failed to write $ZIP" >&2; exit 1; }
+if ! { mkdir -p "$OUT_DIR" && ditto -c -k --keepParent "$R" "$ZIP"; } 2>/dev/null; then
+    echo "cannot write to $OUT_DIR, saving next to the log instead" >&2
+    ZIP="$FALLBACK_DIR/$NAME.zip"
+    mkdir -p "$FALLBACK_DIR" && ditto -c -k --keepParent "$R" "$ZIP" || { echo "failed to write $ZIP" >&2; exit 1; }
+fi
 [[ -z "${FAL_APP_PATH:-}" && -t 1 ]] && open -R "$ZIP"
 echo "$ZIP"

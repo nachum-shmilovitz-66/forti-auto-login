@@ -47,6 +47,9 @@ SIGN_ID="$(security find-identity -v 2>/dev/null | grep -o '"Developer ID Instal
 rm -f "$OUT"
 productbuild --distribution "$WORK/distribution.xml" --resources "$WORK/resources" \
     --package-path "$WORK" ${SIGN_ID:+--sign "$SIGN_ID"} "$OUT" >/dev/null
+# the staged app would otherwise show up in Spotlight (and in problem reports)
+# as one more copy of the app
+rm -rf "$WORK/root"
 echo "installer signed as: ${SIGN_ID:-unsigned} (runs on: $ARCH)"
 if [[ "${1:-}" == "--notarize" ]]; then
     echo "notarizing (needs keychain profile 'FortiAutoLogin')…"

@@ -107,9 +107,10 @@ watcher at the same time.
 
 When a login is not filled in, the user picks **Report a Problem…** in the menu bar
 icon, optionally types what happened, and clicks Create Report. After up to a minute
-the app shows the zip (`forti-auto-login-report-<date>-<time>.zip`, kept in
-`~/Library/Logs/Forti Auto Login Reports/`) in Finder, ready to attach to a mail or
-chat. Start with `summary.txt` in it: the key facts and a **Likely causes** list
+the zip (`forti-auto-login-report-<date>-<time>.zip`) is in the **Downloads** folder,
+ready to attach to a mail or chat. macOS asks once to let the app use Downloads; if
+that is refused, the zip goes to `~/Library/Logs/Forti Auto Login Reports/` instead
+and the app says so. Start with `summary.txt` in it: the key facts and a **Likely causes** list
 (missing permissions, no email set, Chrome profile or JavaScript switch, Gmail
 errors, extra app copies, the outcome of the last attempt).
 
@@ -155,6 +156,7 @@ https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
 |---------|------------|-------|
 | 1.0.0   | 2026-09-03 | First release: menu bar app, Settings window with validated email, token dialog auto-fill from Gmail, window auto-close, styled DMG. |
 | 1.0.1   | 2026-09-27 | Setup wizard installer that starts the app when done; Report a Problem (diagnostics zip with likely causes); shorter menu (short status, About, Quit, © in About); clearer watcher log on failures. |
+| 1.0.2   | 2026-09-27 | Fix: a Gmail tab that does not answer no longer blocks reading the code (10 s limit per tab, so the dialog is filled before it closes); problem reports saved to Downloads; no false "extra app copy" in reports. Installer (.pkg) instead of a DMG. |
 
 To cut a new release: bump the patch number in `VERSION`, then
 

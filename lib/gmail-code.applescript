@@ -30,9 +30,11 @@ on gmailTabs(email, domain)
 		repeat with w in windows
 			repeat with t in tabs of w
 				if (URL of t) starts with "https://mail.google.com/" then
+					-- the tab's title property, not JavaScript: a tab that does not
+					-- answer JavaScript would block here for 2 minutes
 					set ti to ""
 					try
-						set ti to execute t javascript "document.title"
+						set ti to title of t
 					end try
 					if ti is missing value then set ti to ""
 					if email is not "" then
@@ -53,26 +55,39 @@ on gmailTabs(email, domain)
 end gmailTabs
 
 -- run start+parse JS in one tab; returns result text or "ERR:..."
+-- Every call to Chrome is capped at 10 s (error -1712 when it expires): a tab
+-- that does not answer JavaScript otherwise blocks for AppleScript's default
+-- 2 minutes, longer than the token dialog stays open.
 on fetchFromTab(t, startJS, parseJS)
 	tell application "Google Chrome"
 		repeat with attempt from 1 to 2
+			set r to missing value
 			try
-				set r to execute t javascript startJS
-			on error m
+				with timeout of 10 seconds
+					set r to execute t javascript startJS
+				end timeout
+			on error m number n
 				-- e.g. "Executing JavaScript through AppleScript is turned off" in this profile
-				return "ERR:" & m
+				if n is not -1712 then return "ERR:" & m
 			end try
 			if r is missing value then
-				-- discarded (Memory Saver) or sleeping tab: wake it up once
-				if attempt is 2 then return "ERR:tab not scriptable"
-				reload t
+				-- no answer, or a discarded (Memory Saver) / sleeping tab: reload it once
+				if attempt is 2 then return "ERR:tab did not answer JavaScript"
+				try
+					with timeout of 10 seconds
+						reload t
+					end timeout
+				end try
 				delay 5
 			else
 				repeat 20 times
 					delay 0.5
 					try
-						set res to execute t javascript parseJS
-					on error m
+						with timeout of 10 seconds
+							set res to execute t javascript parseJS
+						end timeout
+					on error m number n
+						if n is -1712 then return "ERR:tab did not answer JavaScript"
 						return "ERR:" & m
 					end try
 					if res is missing value then return "ERR:parse failed"

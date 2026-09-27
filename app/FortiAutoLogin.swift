@@ -197,7 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         a.messageText = "Report created"
+        // collect-report.sh saves to Downloads, or next to the log if macOS refused access
+        let folder = (zip as NSString).deletingLastPathComponent
+        let downloads = NSString(string: "~/Downloads").expandingTildeInPath
         a.informativeText = (zip as NSString).lastPathComponent +
+            (folder == downloads ? " is in your Downloads folder." : " is in \(folder).") +
             "\n\nAttach this file to an email or chat message to whoever supports you."
         a.addButton(withTitle: "Show in Finder")
         a.addButton(withTitle: "Done")
