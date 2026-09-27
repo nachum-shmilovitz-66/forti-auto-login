@@ -126,17 +126,16 @@ masked to first and last letter plus the domain. The file layout and summary key
 are in [docs/problem-reports.md](docs/problem-reports.md), which a Windows port must
 follow.
 
-## DMG for colleagues
+## Installer for colleagues
 
 ```bash
-./make-dmg.sh              # dist/Forti Auto Login <version>.dmg (version from VERSION)
-./make-dmg.sh --notarize   # also notarize + staple (see script header for setup)
-./make-pkg.sh              # only the installer: dist/Forti Auto Login <version>.pkg
+./make-pkg.sh              # dist/Forti Auto Login <version>.pkg (version from VERSION)
+./make-pkg.sh --notarize   # also notarize + staple (see script header for setup)
 ```
 
-The DMG holds **Install Forti Auto Login.pkg** and a READ ME FIRST.txt. The
-installer is the standard macOS setup wizard (Introduction, Read Me, Install,
-Summary; pages and scripts in `installer/macos/`). It quits a running copy, installs
+Colleagues get that one .pkg file; there is no DMG. Double-clicking it opens the
+standard macOS setup wizard (Introduction, Read Me, Install, Summary; pages and
+scripts in `installer/macos/`). It quits a running copy, installs
 the app into /Applications and starts it for the logged-in user, so the Settings
 window and the permission prompts appear right away. Colleagues then enter their
 email, grant Accessibility plus the two Automation prompts, enable Chrome's "Allow
@@ -149,7 +148,7 @@ blocks the installer on first open; they get past it via System Settings > Priva
 
 ## Releases
 
-Download the latest DMG from
+Download the latest installer (.pkg) from
 https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
 
 | Version | Date       | Notes |
@@ -160,7 +159,7 @@ https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
 To cut a new release: bump the patch number in `VERSION`, then
 
 ```bash
-./make-dmg.sh && gh release create v$(cat VERSION) "dist/Forti Auto Login $(cat VERSION).dmg" --title "Forti Auto Login $(cat VERSION)" --notes "..."
+./make-pkg.sh && gh release create v$(cat VERSION) "dist/Forti Auto Login $(cat VERSION).pkg" --title "Forti Auto Login $(cat VERSION)" --notes "..."
 ```
 
 Add a row to the table above.
@@ -194,5 +193,5 @@ Add a row to the table above.
   files are created mode 600, and one-time codes are masked in the log.
 - Any unread inbox mail whose subject is `AuthCode: nnnnnn` is accepted, sender not
   checked; a spoofed mail can make a login fail, not succeed.
-- Prefer a notarized DMG (`./make-dmg.sh --notarize`) so users are not trained to
+- Prefer a notarized installer (`./make-pkg.sh --notarize`) so users are not trained to
   click "Open Anyway".

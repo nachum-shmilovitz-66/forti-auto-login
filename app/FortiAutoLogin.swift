@@ -3,7 +3,7 @@
 // offers: a short status (full last log line in its tooltip), Open Log, Restart Watcher, Settings,
 // Report a Problem (zip for support, built by lib/collect-report.sh), About, Quit.
 // The script is bundled in Contents/Resources (copied by make-app.sh), so the
-// app is self-contained and can be shipped as a DMG.
+// app is self-contained and can be shipped in the installer (make-pkg.sh).
 import AppKit
 import ApplicationServices
 

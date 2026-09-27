@@ -3,9 +3,15 @@
 # setup wizard (Introduction > Read Me > Install > Summary) that quits a running
 # copy, puts the app in /Applications and starts it when it finishes. Pages and
 # install scripts live in installer/macos/. Signed with the keychain's
-# "Developer ID Installer" identity when there is one. make-dmg.sh ships it.
+# "Developer ID Installer" identity when there is one. This .pkg is the file
+# colleagues get (release asset); there is no DMG.
 #
-#   ./make-pkg.sh [output.pkg]
+#   ./make-pkg.sh              build app + installer
+#   ./make-pkg.sh --notarize   also notarize + staple (one-time setup below)
+#
+# Notarization removes the "cannot be opened / could not be verified" block on
+# other Macs. One-time setup, with an app-specific password from appleid.apple.com:
+#   xcrun notarytool store-credentials FortiAutoLogin --apple-id <your apple id> --team-id <your team id>
 set -eu
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAME="Forti Auto Login"
@@ -14,7 +20,7 @@ VERSION="$(cat "$DIR/VERSION")"
 APP="$HOME/Applications/$NAME.app"
 SRC="$DIR/installer/macos"
 WORK="$DIR/app/build/pkg"
-OUT="${1:-$DIR/dist/$NAME $VERSION.pkg}"
+OUT="$DIR/dist/$NAME $VERSION.pkg"
 
 "$DIR/make-app.sh"
 
@@ -42,4 +48,10 @@ rm -f "$OUT"
 productbuild --distribution "$WORK/distribution.xml" --resources "$WORK/resources" \
     --package-path "$WORK" ${SIGN_ID:+--sign "$SIGN_ID"} "$OUT" >/dev/null
 echo "installer signed as: ${SIGN_ID:-unsigned} (runs on: $ARCH)"
+if [[ "${1:-}" == "--notarize" ]]; then
+    echo "notarizing (needs keychain profile 'FortiAutoLogin')…"
+    xcrun notarytool submit "$OUT" --keychain-profile FortiAutoLogin --wait
+    xcrun stapler staple "$OUT"
+fi
 echo "built $OUT"
+du -h "$OUT"

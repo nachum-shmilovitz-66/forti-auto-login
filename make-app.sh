@@ -2,7 +2,7 @@
 # Builds "~/Applications/Forti Auto Login.app": a menu bar app (shield icon) that runs
 # the bundled forti-auto-login.sh --watch as a child process. Self-contained:
 # the script and lib/ are copied into Contents/Resources, so the app can be
-# moved or shipped in a DMG (see make-dmg.sh). Menu: status, Open Log,
+# moved or shipped in the installer (see make-pkg.sh). Menu: status, Open Log,
 # Restart Watcher, Quit. macOS asks for Accessibility / Automation permissions
 # once, under the name "Forti Auto Login". Add the app to Login Items to autostart.
 set -eu

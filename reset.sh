@@ -1,10 +1,10 @@
 #!/bin/bash
 # Puts this Mac back to "never installed" for testing a fresh install:
 #   - quits the app and its watcher
-#   - removes "~/Applications/Forti Auto Login.app"
+#   - removes the app from ~/Applications and /Applications
 #   - removes the user config, last-code state, and log
 #   - revokes the app's Accessibility and Automation (Apple Events) grants
-# Not touched: the project folder, the DMG in dist/, Chrome's
+# Not touched: the project folder, the installer in dist/, Chrome's
 # "Allow JavaScript from Apple Events", and a Login Items entry (remove that
 # by hand in System Settings > General > Login Items).
 set -u
@@ -16,8 +16,10 @@ for f in "$HOME/Applications/Forti Auto Login.app" "/Applications/Forti Auto Log
          "$HOME/Applications/FortiAutoLogin.app" "/Applications/FortiAutoLogin.app" \
          "$HOME/.forti-auto-login.conf" "$HOME/.forti-auto-login.last" \
          "$HOME/Library/Logs/forti-auto-login.log"; do
-    [[ -e "$f" ]] && rm -rf "$f" && echo "removed $f"
+    [[ -e "$f" ]] || continue
+    if rm -rf "$f" 2>/dev/null; then echo "removed $f"
+    else echo "cannot remove $f (the installer made it root-owned): sudo rm -rf \"$f\""; fi
 done
 tccutil reset Accessibility "$ID" >/dev/null 2>&1 && echo "revoked Accessibility"
 tccutil reset AppleEvents "$ID"   >/dev/null 2>&1 && echo "revoked Automation (System Events / Chrome)"
-echo "done. Fresh-install test: open the DMG in dist/, drag to Applications, open the app."
+echo "done. Fresh-install test: double-click the .pkg in dist/ and follow the installer."
