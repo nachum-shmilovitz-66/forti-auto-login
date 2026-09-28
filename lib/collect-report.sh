@@ -156,11 +156,11 @@ done
 rmdir "$R/crashes" 2>/dev/null
 
 # ---------------------------------------------------------------- settings
-EMAIL=""; PREFIX=""
+EMAIL=""; PREFIX=""; AUTO=""; UPDCHECK=""
 if [[ -f "$CONF" ]]; then
     while IFS='=' read -r k v; do      # same parsing as forti-auto-login.sh
         v="${v%\"}"; v="${v#\"}"
-        case "$k" in GMAIL_ACCOUNT) EMAIL="$v" ;; VPN_IP_PREFIX) PREFIX="$v" ;; esac
+        case "$k" in GMAIL_ACCOUNT) EMAIL="$v" ;; VPN_IP_PREFIX) PREFIX="$v" ;; AUTO_RECONNECT) AUTO="$v" ;; UPDATE_CHECK) UPDCHECK="$v" ;; esac
     done < "$CONF"
 fi
 DOMAIN="${EMAIL#*@}"
@@ -169,6 +169,12 @@ elif [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then EM
 else EMAIL_STATE=invalid; fi
 kv email_configured "$EMAIL_STATE ($(mask <<< "${EMAIL:-none}"))"
 kv vpn_ip_prefix "${PREFIX:-(any new utun address)}"
+kv auto_reconnect "$( [[ "$AUTO" == 1 ]] && echo on || echo off )"
+kv update_check "$( [[ "$UPDCHECK" == 0 ]] && echo off || echo on )"
+# the app's last update check (Check for Updates, or the daily one)
+LATEST="$(defaults read com.nshmilovitz.fortiautologin latestVersion 2>/dev/null)"
+LATEST_AT="$(defaults read com.nshmilovitz.fortiautologin latestVersionChecked 2>/dev/null)"
+kv latest_version "$( [[ -n "$LATEST" ]] && echo "$LATEST (checked ${LATEST_AT% +0000} UTC)" || echo unknown )"
 [[ "$EMAIL_STATE" == valid ]] || finding "No valid email address is set ($EMAIL_STATE). Open Settings and enter the Google account that receives the AuthCode mail."
 {
     section "config file $CONF"
@@ -301,7 +307,22 @@ if [[ -d "$FC_APP" ]]; then kv vpn_client "FortiClient $(plist_value "$FC_APP" C
 else kv vpn_client "FortiClient not found in /Applications"; finding "FortiClient is not installed in /Applications."; fi
 FC_PROCS="$(with_timeout 15 osascript -e 'tell application "System Events" to get name of every process whose name begins with "Forti" and name is not "FortiAutoLogin"' 2>&1)"
 kv vpn_client_processes "$FC_PROCS"
+# the connections the app's menu offers, and FortiClient's VPN service as macOS sees it
+FC_VPN_CONF="/Library/Application Support/Fortinet/FortiClient/conf/vpn.plist"
+FC_USER_DIR="$HOME/Library/Application Support/Fortinet/FortiClient"
+FC_TRAY_LOG="$FC_USER_DIR/Logs/fortitray.log"
+kv vpn_profiles "$(/usr/libexec/PlistBuddy -c 'Print :Profiles' "$FC_VPN_CONF" 2>/dev/null | sed -nE 's/^    ([^ ].*) = Dict \{$/\1/p' | paste -sd ',' -)"
+kv vpn_last_profile "$(/usr/libexec/PlistBuddy -c 'Print :VPNLastTimeConnection' "$FC_USER_DIR/fct.plist" 2>/dev/null)"
+kv vpn_state "$(scutil --nc list 2>/dev/null | sed -nE '/com\.fortinet\.forticlient/{s/^[^(]*\(([^)]*)\).*/\1/p;q;}')"
+# stuck = that error came after FortiClient's last successful connection
+TRAY_LAST="$(tail -n 3000 "$FC_TRAY_LOG" 2>/dev/null | grep -a -e '-> TunnelRunning' -e 'Previous VPN session is not ended' | tail -1)"
+if [[ "$TRAY_LAST" == *"Previous VPN session is not ended"* ]]; then
+    finding "FortiClient is stuck on an earlier VPN session (\"Previous VPN session is not ended\" in its log), so every connect fails. Restart its menu bar icon: launchctl kickstart -k gui/\$(id -u)/com.fortinet.forticlient.fortitray (or restart the Mac)."
+fi
 {
+    section "FortiClient VPN service (scutil --nc list)"; scutil --nc list 2>&1 | grep -i fortinet
+    section "FortiClient menu bar log, last 300 lines ($FC_TRAY_LOG)"
+    tail -n 300 "$FC_TRAY_LOG" 2>&1
     section "processes"; ps -axo pid,etime,comm | grep -i forti | grep -v -e grep -e 'forti-auto-login'
     section "UI of every Forti* process (text field values masked)"
     names=()
@@ -358,6 +379,11 @@ else
     kv log_lines "no log file at $LOG"
     LAST=""
     finding "No log file: the watcher has never run for this user."
+fi
+# least specific, so last: an older app version
+if [[ -n "$LATEST" && -n "$VERSION" && "$LATEST" != "$VERSION" \
+      && "$(printf '%s\n%s\n' "$LATEST" "$VERSION" | sort -V | tail -1)" == "$LATEST" ]]; then
+    finding "A newer version ($LATEST) is available; this is $VERSION. Menu: Install Update $LATEST… (the problem may already be fixed there)."
 fi
 
 # ---------------------------------------------------------------- summary + zip

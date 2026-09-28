@@ -18,7 +18,7 @@ handles reports from both platforms. Change the format only together with
 | `settings.txt` | config file (masked), last used code's issued time, env overrides | `~/.forti-auto-login.conf`, `~/.forti-auto-login.last` |
 | `permissions.txt` | Accessibility state, live token-dialog probe | `AXIsProcessTrusted`, `token-dialog.applescript find` |
 | `browser.txt` | Chrome profiles (which one is the configured account, JavaScript-from-Apple-Events switch), Gmail tab titles, live Gmail probe | Chrome `Local State` and `Preferences`, `gmail-code.applescript` |
-| `vpn-client.txt` | FortiClient processes and the UI tree of each Forti* process (text fields masked) | `ps`, `dump-ui.applescript` |
+| `vpn-client.txt` | FortiClient's VPN service state, the last 300 lines of its menu bar log (`fortitray.log`), its processes and the UI tree of each Forti* process (text fields masked) | `scutil --nc list`, `tail`, `ps`, `dump-ui.applescript` |
 | `network.txt` | VPN interface addresses, interfaces, default route | `ifconfig`, `route`, `scutil --nwi` |
 | `app.txt` | bundle path, signature, Gatekeeper, every copy of the app, processes, login items, crash reports | `codesign`, `spctl`, `mdfind` |
 | `system.txt` | OS version, hardware, uptime, time zone, locale | `sw_vers`, `sysctl` |
@@ -44,6 +44,9 @@ attempt (from the log)` (log lines from the last token dialog on), `User descrip
 | `app_quarantined`, `app_path`, `app_signature`, `app_copies` | signature: signer name, `ad-hoc`, `unsigned` |
 | `email_configured` | `valid` / `invalid` / `missing`, plus the masked address |
 | `vpn_ip_prefix` | the prefix, or `(any new utun address)` |
+| `auto_reconnect` | `on` / `off`: the menu's Auto-Reconnect switch (log lines start with `auto-reconnect:`) |
+| `update_check` | `on` / `off`: the daily check for a newer release on GitHub (Settings) |
+| `latest_version` | newest release found by the app's last update check, with its time, or `unknown` (log lines start with `update:`) |
 | `accessibility` | `granted` / `missing` / `unknown` |
 | `ui_automation_probe` | `ok` / `denied` / `timeout` |
 | `token_dialog_open_now` | `yes (<process>)` / `no` |
@@ -54,6 +57,9 @@ attempt (from the log)` (log lines from the last token dialog on), `User descrip
 | `gmail_tabs` | count of open Gmail tabs |
 | `gmail_probe` | `code found (issued ...)` / `none (...)` / `ERR:...` / `[timed out ...]` / `skipped` |
 | `vpn_client`, `vpn_client_processes` | FortiClient version, its processes |
+| `vpn_profiles` | FortiClient's connection names, comma separated (the app's Connect items) |
+| `vpn_last_profile` | the connection FortiClient used last (the connected one while connected) |
+| `vpn_state` | FortiClient's VPN service: `Connected` / `Connecting` / `Disconnected` / `Disconnecting`, empty if none |
 | `vpn_addresses_now` | `utunN: a.b.c.d` pairs, or `none` |
 | `log_lines`, `attempts_in_log` | size and last change; connected vs failed count |
 | `last_attempt` | timestamp and outcome of the last token dialog |
@@ -79,5 +85,7 @@ letter (`n***z@example.com`); compare addresses before masking (as the
 | `app_signature`, `app_quarantined` | Authenticode signer; Mark-of-the-Web on the exe |
 | `browser_js_from_apple_events` | whatever the port uses to read Gmail, or `not_applicable` |
 | `vpn_addresses_now` | IPv4 of the Fortinet virtual adapter |
+| `vpn_profiles`, `vpn_state` | FortiClient's connection list and state as the Windows client exposes them |
+| `latest_version` (app defaults `latestVersion`) | wherever the port keeps its last update check (registry or a file next to the log) |
 | `system.txt` | `systeminfo`-style OS build, uptime, time zone, locale |
 | zip | `Compress-Archive` (same layout) |

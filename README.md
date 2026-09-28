@@ -2,8 +2,10 @@
 
 Fills the FortiClient "Token Code" dialog with the code from the `AuthCode: NNNNNN`
 mail in Gmail, clicks OK, and closes the FortiClient window once the VPN is up.
-You still click Connect and enter the password yourself; only the token step and
-the window cleanup are automated.
+Connect from the menu bar app (its menu lists FortiClient's connections) and the
+token dialog is kept off-screen while it is filled in; connecting from FortiClient
+itself works as before, with the dialog visible. A password that FortiClient does
+not save is still typed by you.
 
 ## Demo
 
@@ -15,6 +17,15 @@ VPN is up. Full-quality recording:
 
 ## How it works
 
+0. Connect from the menu bar app (optional): the menu lists the connections in
+   FortiClient's `/Library/Application Support/Fortinet/FortiClient/conf/vpn.plist`
+   and shows the state of FortiClient's VPN service (`scutil --nc list`).
+   FortiClient has no command line for SSL VPN, so Connect and Disconnect click
+   the same items in FortiClient's own menu bar menu (`lib/fortitray.applescript`),
+   which opens for a moment. The app then watches FortiClient's windows every
+   0.1 s and moves the token dialog to a display corner as it appears (macOS keeps
+   about a pixel of it on screen). If the watcher cannot fill it in (no mail, code
+   rejected, watcher stopped, 150 s), the dialog is put back for you to type the code.
 1. `lib/token-dialog.applescript` polls System Events for a window of any `Forti*`
    process that contains the text "Token Code" and a text field.
 2. `lib/gmail-code.applescript` walks every Gmail tab in every Chrome window (each
@@ -27,14 +38,17 @@ VPN is up. Full-quality recording:
    sign-in matches `GMAIL_ACCOUNT` (found in Chrome's `Local State`) and the scan
    runs again. No window needs
    focus. It returns the newest `AuthCode` mail issued after the dialog appeared.
-3. The code is typed into the dialog and OK is clicked.
+3. The code is typed into the dialog and OK is clicked; the app you were working in
+   gets the focus back.
 4. `forti-auto-login.sh` waits until a new `utun` address shows up that was not there
    when the dialog appeared (any FortiClient connection, not only PreProd), then
    `lib/close-main-window.applescript` closes the FortiClient window. The app keeps
    running in the menu bar. Set `VPN_IP_PREFIX` (e.g. `10.0.`) to require a specific
    subnet instead.
 
-Nothing leaves the machine; no Google API keys, no stored passwords.
+Nothing leaves the machine; no Google API keys, no stored passwords. The only
+request out is the menu bar app's update check, which asks GitHub for the latest
+release and sends no data about you (it can be turned off in Settings).
 
 ## Setup
 
@@ -88,11 +102,38 @@ Compiles `app/FortiAutoLogin.swift` (needs Xcode command line tools) into
 `~/Applications/Forti Auto Login.app`: a shield icon in the menu bar that runs the
 watcher as a child process. The script and `lib/` are copied inside the bundle, so
 the app is self-contained; rerun `make-app.sh` after editing the scripts. Filled shield = handling a dialog right now. Its menu
-shows a short status (hover it for the last log line) and offers Open Log, Restart Watcher, Settings…, Report a
-Problem…, About (version and GitHub link), Quit.
-Settings… is a small window for the email address (validated) and VPN prefix; it
-writes `~/.forti-auto-login.conf`, which the script sources after its CONFIG block,
-and restarts the watcher. Non-technical colleagues never touch the script. The Finder
+shows a short status (hover it for the last log line), FortiClient's connections
+(`Connect to <name>` for each, or `Disconnect <name>` while connected), an
+**Auto-Reconnect** switch, and offers Open Log, Restart Watcher, Settings…, Report a
+Problem…, Check for Updates…, About (version and GitHub link), Quit.
+
+Auto-Reconnect (off by default, saved as `AUTO_RECONNECT="1"` in the config file)
+connects the last connection again when it drops, including after the Mac slept,
+through the same hidden-dialog flow. It does not reconnect after a disconnect from
+this menu or from FortiClient (FortiClient logs "VPN stopped by user" in
+`~/Library/Application Support/Fortinet/FortiClient/Logs/fortitray.log`), and only
+runs while the user is logged in with the screen unlocked and the network is up;
+a drop while locked is reconnected after unlocking. Connections whose password
+FortiClient does not save are skipped. It waits 10 s, then tries up to 3 times (30 s
+and 2 min apart) and then gives up with a notification. Its log lines start with
+`auto-reconnect:`.
+
+Updates: once a day (first a minute after launch) the app asks GitHub for the
+latest release of this repository. When it is newer, a notification appears once
+and the menu item turns into **Install Update X.Y.Z…**, which shows the release
+notes with Install, Later and Skip This Version. Install downloads the release's
+.pkg, checks it against GitHub's SHA-256 and that it is signed by a Developer ID
+Installer certificate of the same team as the running app, and opens it in
+Installer; the package quits the app and starts the new version. A copy that is not
+Developer ID signed opens the releases page instead. Turn the daily check off in
+Settings; Check for Updates… still works. Log lines start with `update:`. To try it
+without installing: `defaults write com.nshmilovitz.fortiautologin FALUpdateTestAs 1.0.0`
+makes the app act as 1.0.0 and stop before opening Installer (`defaults delete` the
+key afterwards).
+
+Settings… is a small window for the email address (validated), VPN prefix and the
+daily update check; it writes `~/.forti-auto-login.conf`, which the script sources
+after its CONFIG block, and restarts the watcher. Non-technical colleagues never touch the script. The Finder
 icon is FortiClient's own. Grant the same permissions on first launch, then add the
 app to System Settings > General > Login Items. Start by hand:
 
@@ -157,6 +198,7 @@ https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
 | 1.0.0   | 2026-09-03 | First release: menu bar app, Settings window with validated email, token dialog auto-fill from Gmail, window auto-close, styled DMG. |
 | 1.0.1   | 2026-09-27 | Setup wizard installer that starts the app when done; Report a Problem (diagnostics zip with likely causes); shorter menu (short status, About, Quit, © in About); clearer watcher log on failures. |
 | 1.0.2   | 2026-09-27 | Fix: a Gmail tab that does not answer no longer blocks reading the code (10 s limit per tab, so the dialog is filled before it closes); problem reports saved to Downloads; no false "extra app copy" in reports. Installer (.pkg) instead of a DMG. |
+| 1.0.3   | 2026-09-28 | Connect FortiClient's connections from the menu, with the token dialog kept off-screen while it is filled in (FortiClient's own menu works as before); Auto-Reconnect switch (not after a disconnect by the user, only while logged in with the screen unlocked); Check for Updates, also daily, verifies the download's SHA-256 and Developer ID signature before opening Installer; the app you were in gets the focus back after the fill; fix: token dialogs with an unreadable element were missed; problem reports add the VPN connections and state, FortiClient's log, a stuck-session finding and the update status. |
 
 To cut a new release: bump the patch number in `VERSION`, then
 
@@ -164,7 +206,9 @@ To cut a new release: bump the patch number in `VERSION`, then
 ./make-pkg.sh && gh release create v$(cat VERSION) "dist/Forti Auto Login $(cat VERSION).pkg" --title "Forti Auto Login $(cat VERSION)" --notes "..."
 ```
 
-Add a row to the table above.
+Add a row to the table above. The app's update check relies on this: the tag is
+`vX.Y.Z`, the release is not a draft or pre-release, and it has exactly one `.pkg`
+asset signed with the same Developer ID team as the app.
 
 ## Status / caveats
 
@@ -183,6 +227,10 @@ Add a row to the table above.
   `~/.forti-auto-login.last`, so a second dialog never gets the previous code.
 - The Gmail feed only lists **unread** inbox mail. Do not open the AuthCode mails
   before the script reads them (you no longer need to).
+- If FortiClient refuses every connect with "Previous VPN session is not ended"
+  (seen after the Mac locked while a token dialog was open), restart its menu bar
+  icon: `launchctl kickstart -k gui/$(id -u)/com.fortinet.forticlient.fortitray`.
+  The problem report flags this.
 ## Security notes
 
 - This makes the email second factor as strong as the unlocked Mac plus its
@@ -190,9 +238,13 @@ Add a row to the table above.
 - Chrome's "Allow JavaScript from Apple Events" lets every app the user has approved
   for Chrome automation run JavaScript in Chrome pages. Enable it only in the Gmail
   profile.
-- Nothing leaves the machine. No passwords are stored. The config file holds only the
-  email address and VPN prefix and is parsed, never executed; log, state, and config
-  files are created mode 600, and one-time codes are masked in the log.
+- Nothing leaves the machine except the update check (an anonymous request for this
+  repository's latest release). No passwords are stored. The config file holds only
+  the email address, VPN prefix and two switches and is parsed, never executed; log,
+  state, and config files are created mode 600, and one-time codes are masked in the log.
+- An update is opened only after its SHA-256 matches GitHub's and its signature is a
+  Developer ID Installer certificate of the running app's own team, so a changed or
+  foreign package is refused. Installer still asks for an admin password if needed.
 - Any unread inbox mail whose subject is `AuthCode: nnnnnn` is accepted, sender not
   checked; a spoofed mail can make a login fail, not succeed.
 - Prefer a notarized installer (`./make-pkg.sh --notarize`) so users are not trained to

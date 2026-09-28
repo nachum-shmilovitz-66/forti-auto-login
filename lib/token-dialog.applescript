@@ -19,14 +19,17 @@ on findDialog()
 					set fieldRef to missing value
 					set els to entire contents of w
 					repeat with e in els
-						set r to role of e
-						if r is "AXStaticText" then
-							try
+						-- some elements cannot be read (System Events returns a
+						-- "property list item" for a group inside a title bar
+						-- button); skip them instead of skipping the whole window
+						try
+							set r to role of e
+							if r is "AXStaticText" then
 								if (value of e as text) contains "Token Code" then set hasText to true
-							end try
-						else if r is "AXTextField" then
-							set fieldRef to e
-						end if
+							else if r is "AXTextField" then
+								set fieldRef to e
+							end if
+						end try
 					end repeat
 					if hasText and fieldRef is not missing value then
 						return {name of p, w, fieldRef}
@@ -52,6 +55,11 @@ on run argv
 		set w to item 2 of hit
 		set tf to item 3 of hit
 		tell application "System Events"
+			-- the app the user is working in gets the focus back afterwards
+			set prevPID to 0
+			try
+				set prevPID to unix id of (first process whose frontmost is true)
+			end try
 			tell process procName
 				set frontmost to true
 			end tell
@@ -76,6 +84,10 @@ on run argv
 				click button "OK" of w
 			on error
 				keystroke return
+			end try
+			try
+				set prev to first process whose unix id is prevPID
+				if name of prev is not procName then set frontmost of prev to true
 			end try
 		end tell
 		return "ok"
