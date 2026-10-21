@@ -101,16 +101,18 @@ if [[ -n "${FAL_WATCHER_RUNNING:-}" ]]; then
     kv watcher_running "$([[ "$FAL_WATCHER_RUNNING" == 1 ]] && echo yes || echo no)"
     [[ "$FAL_WATCHER_RUNNING" == 1 ]] || finding "The app's watcher is not running (script crashed or failed to start). Use Restart Watcher; see log.txt for its last lines."
 fi
-(( NWATCH == 0 )) && finding "No watcher process is running, so no token dialog is handled. Start the app (or add it to Login Items so it starts after a reboot)."
+(( NWATCH == 0 )) && finding "No watcher process is running, so no token dialog is handled. Start the app (and turn on Open at Login in its menu so it starts after a reboot)."
 (( NWATCH > 1 ))  && finding "$NWATCH watcher processes are running (app and Terminal, or two app copies). They fight over the same dialog: keep only one."
 
 SIG="unknown"; COPIES=""
 LOGIN_ITEMS="$(with_timeout 15 osascript -e 'tell application "System Events" to get the name of every login item' 2>&1)"
-if [[ "$LOGIN_ITEMS" == *"Forti Auto Login"* ]]; then kv login_item yes
+# the app's own Open at Login (SMAppService, macOS 13+) is not in System Events' list
+if [[ "${FAL_OPEN_AT_LOGIN:-}" == 1 ]]; then kv login_item "yes (Open at Login)"
+elif [[ "$LOGIN_ITEMS" == *"Forti Auto Login"* ]]; then kv login_item yes
 elif [[ "$LOGIN_ITEMS" == *"timed out"* ]] || denied "$LOGIN_ITEMS"; then kv login_item unknown
 else
     kv login_item no
-    finding "Forti Auto Login is not in Login Items, so after a restart nothing handles the dialog until the app is opened. System Settings > General > Login Items: add it."
+    finding "Forti Auto Login does not open at login, so after a restart nothing handles the dialog until the app is opened. Turn on Open at Login in its menu (macOS 12: System Settings > General > Login Items, add it)."
 fi
 {
     section "app bundle"; echo "${APP:-not running from an app bundle}"

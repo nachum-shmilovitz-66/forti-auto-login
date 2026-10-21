@@ -13,11 +13,13 @@ import ApplicationServices
 import CryptoKit
 import Network
 import Security
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let statusLine = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
     private var accessibilityItem: NSMenuItem!
+    private var loginItem: NSMenuItem!
     private var reportItem: NSMenuItem!
     private var updateItem: NSMenuItem!
     private var watcher: Process?
@@ -46,6 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "l")
         menu.addItem(withTitle: "Restart Watcher", action: #selector(restartWatcher), keyEquivalent: "r")
         menu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        loginItem = menu.addItem(withTitle: "Open at Login", action: #selector(toggleOpenAtLogin), keyEquivalent: "")
+        loginItem.toolTip = "Starts Forti Auto Login when you log in, so it works after a restart."
+        loginItem.isHidden = !loginItemSupported
         // only shown while the Accessibility grant is missing
         accessibilityItem = menu.addItem(withTitle: "Grant Accessibility Permission…",
                                          action: #selector(openAccessibility), keyEquivalent: "")
@@ -67,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         startWatcher()
+        registerLoginItemOnce()
         // first run: no email yet -> open Settings right away
         if !isValidEmail(readConf()["GMAIL_ACCOUNT"] ?? "") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.showSettings() }
@@ -206,6 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        loginItem.state = openAtLogin ? .on : .off   // may have changed in System Settings
         vpnItems.forEach { menu.removeItem($0) }
         vpnItems = []
         let profiles = vpnProfiles
@@ -509,6 +516,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func axSetPoint(_ el: AXUIElement, _ point: CGPoint) {
         var p = point
         if let v = AXValueCreate(.cgPoint, &p) { AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, v) }
+    }
+
+    // MARK: open at login (SMAppService, macOS 13 and later)
+    // Without it nothing handles the token dialog after a restart until the app is
+    // opened by hand. The first launch registers the app once; after that the menu
+    // item (or System Settings > General > Login Items) decides, and a user who
+    // turned it off is never registered again.
+
+    private var loginItemSupported: Bool {
+        if #available(macOS 13, *) { return true }
+        return false
+    }
+
+    private var openAtLogin: Bool {
+        if #available(macOS 13, *) { return SMAppService.mainApp.status == .enabled }
+        return false
+    }
+
+    private func registerLoginItemOnce() {
+        guard #available(macOS 13, *) else { return }
+        let d = UserDefaults.standard
+        guard !d.bool(forKey: "loginItemRegistered") else { return }
+        d.set(true, forKey: "loginItemRegistered")
+        if SMAppService.mainApp.status != .enabled { _ = setOpenAtLogin(true) }
+    }
+
+    @objc private func toggleOpenAtLogin() {
+        guard #available(macOS 13, *) else { return }
+        // usually blocked because it was turned off in System Settings; switch it there
+        if !setOpenAtLogin(!openAtLogin) { SMAppService.openSystemSettingsLoginItems() }
+    }
+
+    private func setOpenAtLogin(_ on: Bool) -> Bool {
+        guard #available(macOS 13, *) else { return false }
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            appLog("open at login: " + (on ? "on" : "off"))
+            return true
+        } catch {
+            appLog("open at login: could not turn it \(on ? "on" : "off"): \(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: auto-reconnect (AUTO_RECONNECT="1" in the config file)
@@ -960,6 +1009,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "FAL_APP_PATH": Bundle.main.bundlePath,
             "FAL_AX_TRUSTED": AXIsProcessTrusted() ? "1" : "0",
             "FAL_WATCHER_RUNNING": (watcher?.isRunning ?? false) ? "1" : "0",
+            "FAL_OPEN_AT_LOGIN": loginItemSupported ? (openAtLogin ? "1" : "0") : "",
             "FAL_DESCRIPTION": description,
         ]) { $1 }
         let pipe = Pipe()

@@ -4,7 +4,7 @@
 # the script and lib/ are copied into Contents/Resources, so the app can be
 # moved or shipped in the installer (see make-pkg.sh). Menu: status, Open Log,
 # Restart Watcher, Quit. macOS asks for Accessibility / Automation permissions
-# once, under the name "Forti Auto Login". Add the app to Login Items to autostart.
+# once, under the name "Forti Auto Login". The app registers itself to open at login.
 set -eu
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP="$HOME/Applications/Forti Auto Login.app"

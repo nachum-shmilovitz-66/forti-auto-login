@@ -134,8 +134,11 @@ key afterwards).
 Settings… is a small window for the email address (validated), VPN prefix and the
 daily update check; it writes `~/.forti-auto-login.conf`, which the script sources
 after its CONFIG block, and restarts the watcher. Non-technical colleagues never touch the script. The Finder
-icon is FortiClient's own. Grant the same permissions on first launch, then add the
-app to System Settings > General > Login Items. Start by hand:
+icon is FortiClient's own. Grant the same permissions on first launch. The first
+launch also registers the app to open at login (`SMAppService`, macOS 13 and later),
+once; the menu's Open at Login switches it off and on again, and the app never
+re-registers itself after it was turned off. On macOS 12, add the app to System
+Settings > General > Login Items by hand. Start by hand:
 
 ```bash
 open -a "Forti Auto Login"
@@ -199,6 +202,7 @@ https://github.com/nachum-shmilovitz-66/forti-auto-login/releases.
 | 1.0.1   | 2026-09-27 | Setup wizard installer that starts the app when done; Report a Problem (diagnostics zip with likely causes); shorter menu (short status, About, Quit, © in About); clearer watcher log on failures. |
 | 1.0.2   | 2026-09-27 | Fix: a Gmail tab that does not answer no longer blocks reading the code (10 s limit per tab, so the dialog is filled before it closes); problem reports saved to Downloads; no false "extra app copy" in reports. Installer (.pkg) instead of a DMG. |
 | 1.0.3   | 2026-09-28 | Connect FortiClient's connections from the menu, with the token dialog kept off-screen while it is filled in (FortiClient's own menu works as before); Auto-Reconnect switch (not after a disconnect by the user, only while logged in with the screen unlocked); Check for Updates, also daily, verifies the download's SHA-256 and Developer ID signature before opening Installer; the app you were in gets the focus back after the fill; fix: token dialogs with an unreadable element were missed; problem reports add the VPN connections and state, FortiClient's log, a stuck-session finding and the update status. |
+| 1.0.4   | 2026-10-21 | Opens at login by itself (macOS 13+), so it works again after a restart; Open at Login switch in the menu, and the app never re-adds itself after it was turned off; problem reports check Open at Login instead of System Events' login items. |
 
 To cut a new release: bump the patch number in `VERSION`, then
 
